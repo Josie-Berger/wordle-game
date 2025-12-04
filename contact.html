@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Game Time - Wordle Clone</title>
+
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700,800" rel="stylesheet" />
+    <link href="css/styles.css" rel="stylesheet" />
+    <link href="css/wordle.css" rel="stylesheet" />
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light" id="mainNav">
+        <div class="container px-4 px-lg-5">
+            <a class="navbar-brand" href="index.html">Josie Berger</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive">
+                Menu <i class="fas fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarResponsive">
+                <ul class="navbar-nav ms-auto py-4 py-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="about.html">Resume</a></li>
+                    <li class="nav-item"><a class="nav-link" href="post.html">Summer in Hawaii</a></li>
+                    <li class="nav-item"><a class="nav-link" href="contact.html">Game Time</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <header class="masthead" style="background-image: url('https://media.newyorker.com/photos/61e98af4518c24b9fabb680d/16:9/w_1280,c_limit/wordle_still.jpg')">
+        <div class="container position-relative px-4 px-lg-5">
+            <div class="row gx-4 gx-lg-5 justify-content-center">
+                <div class="col-md-10 col-lg-8 col-xl-7">
+                    <div class="page-heading">
+                        <h1>Play This Game</h1>
+                        <span class="subheading">Can you solve the Wordle?</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="mb-4">
+        <div class="container px-4 px-lg-5">
+            <div class="row gx-4 gx-lg-5 justify-content-center">
+                <div class="col-md-10 col-lg-8 col-xl-7">
+                    <div id="game-area" class="game-container">
+                        <div class="game-title">
+                          <h2>Wordle Clone</h2>
+                        </div>
+
+                        <div id="board-container" class="board-container">
+                          <div id="board" aria-label="Wordle board"></div>
+                        </div>
+
+                        <div id="controls" class="controls-container">
+                          <div id="keyboard" class="keyboard" aria-label="On-screen keyboard"></div>
+                          <div id="controls-bottom" class="controls-bottom">
+                            <button id="enter-btn" class="key control-key" data-key="Enter">Enter</button>
+                            <button id="backspace-btn" class="key control-key" data-key="Backspace">⌫</button>
+                          </div>
+                        </div>
+
+                        <div id="message" class="message" aria-live="polite"></div>
+                    </div>
+
+                    <script>
+                      (function() {
+                        const WORDS = ["apple","chair","spice","flame","track","smile","crane","stone","light","ocean"];
+                        let ANSWER = WORDS[Math.floor(Math.random() * WORDS.length)];
+                        const MAX_ROWS = 6;
+                        const COLS = 5;
+
+                        let currentRow = 0;
+                        let currentCol = 0;
+                        let gameOver = false;
+                        const keyStatus = {};
+                        const statusPriority = { absent: 1, present: 2, correct: 3 };
+
+                        const board = document.getElementById('board');
+                        const keyboard = document.getElementById('keyboard');
+                        const messageEl = document.getElementById('message');
+                        const enterBtn = document.getElementById('enter-btn');
+                        const backBtn = document.getElementById('backspace-btn');
+
+                        function makeTileId(r,c){ return `tile-${r}-${c}`; }
+
+                        function createBoard(){
+                          board.innerHTML = '';
+                          board.setAttribute('style', 'display:grid;grid-template-columns:repeat(' + COLS + ',1fr);gap:10px;max-width:360px;margin:0 auto;');
+                          for(let r=0;r<MAX_ROWS;r++){
+                            for(let c=0;c<COLS;c++){
+                              const t = document.createElement('div');
+                              t.className = 'tile';
+                              t.id = makeTileId(r,c);
+                              board.appendChild(t);
+                            }
+                          }
+                        }
+
+                        const ROW1 = 'QWERTYUIOP'.split('');
+                        const ROW2 = 'ASDFGHJKL'.split('');
+                        const ROW3 = 'ZXCVBNM'.split('');
+
+                        function createKeyboard(){
+                          keyboard.innerHTML = '';
+                          [ROW1, ROW2, ROW3].forEach(rowLetters => {
+                            const r = document.createElement('div');
+                            r.className = 'kb-row';
+                            rowLetters.forEach(ch => r.appendChild(createKeyButton(ch)));
+                            keyboard.appendChild(r);
+                          });
+                          enterBtn.addEventListener('click', () => handleKey('Enter'));
+                          backBtn.addEventListener('click', () => handleKey('Backspace'));
+                        }
+
+                        function createKeyButton(letter){
+                          const btn = document.createElement('button');
+                          btn.className = 'key';
+                          btn.textContent = letter;
+                          btn.setAttribute('data-key', letter);
+                          btn.addEventListener('click', () => handleKey(letter));
+                          return btn;
+                        }
+
+                        function handleKey(key){
+                          if (gameOver) return;
+                          if (key === 'Backspace') { removeLetter(); return; }
+                          if (key === 'Enter') { submitGuess(); return; }
+                          if (typeof key === 'string' && key.length === 1 && /[a-zA-Z]/.test(key)) { addLetter(key.toUpperCase()); }
+                        }
+
+                        function addLetter(letter){
+                          if(currentCol >= COLS) return;
+                          const tile = document.getElementById(makeTileId(currentRow,currentCol));
+                          tile.textContent = letter;
+                          tile.classList.remove('absent','present','correct','flip','shake');
+                          currentCol++;
+                        }
+
+                        function removeLetter(){
+                          if(currentCol<=0) return;
+                          currentCol--;
+                          const tile = document.getElementById(makeTileId(currentRow,currentCol));
+                          tile.textContent = '';
+                          tile.classList.remove('absent','present','correct','flip','shake');
+                        }
+
+                        function submitGuess(){
+                          if(currentCol < COLS){ shakeCurrentRow(); return; }
+                          const guess = [];
+                          for(let c=0;c<COLS;c++) guess.push(document.getElementById(makeTileId(currentRow,c)).textContent || '');
+                          const guessWord = guess.join('').toLowerCase();
+
+                          const answer = ANSWER.toLowerCase();
+                          const freq = {};
+                          for(let ch of answer) freq[ch] = (freq[ch]||0)+1;
+
+                          const results = new Array(COLS).fill('absent');
+                          for(let i=0;i<COLS;i++){
+                            if(guess[i].toLowerCase() === answer[i]){
+                              results[i] = 'correct';
+                              freq[guess[i].toLowerCase()]--;
+                            }
+                          }
+                          for(let i=0;i<COLS;i++){
+                            if(results[i]==='correct') continue;
+                            const ch = guess[i].toLowerCase();
+                            if(freq[ch] && freq[ch]>0){ results[i]='present'; freq[ch]--; }
+                          }
+
+                          for(let i=0;i<COLS;i++){
+                            const tile = document.getElementById(makeTileId(currentRow,i));
+                            setTimeout(((tile,status)=>()=>{ tile.classList.add('flip'); setTimeout(()=>{ tile.classList.remove('flip'); tile.classList.add(status); },200); })(tile,results[i]), i*350);
+                          }
+
+                          setTimeout(()=>{
+                            for(let i=0;i<COLS;i++){ updateKeyStatus(guess[i].toUpperCase(), results[i]); }
+                          }, COLS*350 + 50);
+
+                          setTimeout(()=>{
+                            if(guessWord === answer){
+                              alert('You win! 🎉');
+                              resetGame();
+                              return;
+                            }
+                            currentRow++;
+                            currentCol = 0;
+                            if(currentRow >= MAX_ROWS){
+                              alert('Game Over — word was: ' + ANSWER.toUpperCase());
+                              resetGame();
+                            }
+                          }, COLS*350 + 250);
+                        }
+
+                        function updateKeyStatus(letter,status){
+                          const prev = keyStatus[letter] || null;
+                          if(!prev || statusPriority[status] > statusPriority[prev]){
+                            keyStatus[letter] = status;
+                            const buttons = keyboard.querySelectorAll('button[data-key="'+letter+'"]');
+                            buttons.forEach(btn=>{ btn.classList.remove('absent','present','correct'); btn.classList.add(status); });
+                          }
+                        }
+
+                        function shakeCurrentRow(){
+                          for(let i=0;i<COLS;i++){
+                            const tile = document.getElementById(makeTileId(currentRow,i));
+                            tile.classList.add('shake');
+                            setTimeout(()=>tile.classList.remove('shake'),600);
+                          }
+                        }
+
+                        function resetGame(){
+                          currentRow=0; currentCol=0; gameOver=false;
+                          for(let r=0;r<MAX_ROWS;r++){
+                            for(let c=0;c<COLS;c++){
+                              const tile = document.getElementById(makeTileId(r,c));
+                              tile.textContent=''; tile.classList.remove('absent','present','correct','flip','shake');
+                            }
+                          }
+                          for(const btn of keyboard.querySelectorAll('.key')) btn.classList.remove('absent','present','correct');
+                          for(let k in keyStatus) delete keyStatus[k];
+                          ANSWER = WORDS[Math.floor(Math.random() * WORDS.length)];
+                        }
+
+                        window.addEventListener('keydown', e=>{
+                          if(gameOver) return;
+                          if(e.key==='Enter'){ e.preventDefault(); handleKey('Enter'); return; }
+                          if(e.key==='Backspace' || e.key==='Delete'){ e.preventDefault(); handleKey('Backspace'); return; }
+                          if(/^[a-zA-Z]$/.test(e.key)){ e.preventDefault(); handleKey(e.key.toUpperCase()); }
+                        });
+
+                        createBoard();
+                        createKeyboard();
+                        window.__wordle = { ANSWER, keyStatus };
+                      })();
+                    </script>
+
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
+
+
+
+
